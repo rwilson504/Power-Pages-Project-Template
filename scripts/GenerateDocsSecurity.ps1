@@ -3,12 +3,22 @@ param(
 )
 # Output is written to the Documentation folder
 
-# Ensure PowerShell.Yaml module is installed
-if (-not (Get-Module -ListAvailable -Name PowerShell-Yaml)) {
-    Write-Host "PowerShell-Yaml module not found. Installing..."
-    Install-Module -Name PowerShell-Yaml -Force -Scope CurrentUser
+
+# Simple YAML parser for flat key-value pairs
+function Parse-YamlSimple {
+    param([string[]]$Lines)
+    $result = @{}
+    foreach ($line in $Lines) {
+        if ($line -match '^[ \t]*#') { continue } # skip comments
+        if ($line -match '^[ \t]*$') { continue } # skip empty lines
+        if ($line -match '^(.*?)\s*:\s*(.*)$') {
+            $key = $matches[1].Trim()
+            $value = $matches[2].Trim()
+            $result[$key] = $value
+        }
+    }
+    return $result
 }
-Import-Module PowerShell-Yaml
 
 $sitesRoot = Join-Path $PSScriptRoot '..' | Join-Path -ChildPath 'sites'
 $docsRoot = Join-Path $PSScriptRoot '..' | Join-Path -ChildPath 'docs'
@@ -29,10 +39,11 @@ foreach ($site in $siteFolders) {
     $websiteFile = Join-Path $sitePath 'website.yml'
     $siteDisplayName = $siteName
     $siteId = ''
+
     if (Test-Path $websiteFile) {
-        $website = Get-Content $websiteFile | ConvertFrom-Yaml
-        if ($website.adx_name) { $siteDisplayName = $website.adx_name }
-        if ($website.adx_websiteid) { $siteId = $website.adx_websiteid }
+        $website = Parse-YamlSimple (Get-Content $websiteFile)
+        if ($website.ContainsKey('adx_name')) { $siteDisplayName = $website['adx_name'] }
+        if ($website.ContainsKey('adx_websiteid')) { $siteId = $website['adx_websiteid'] }
     }
 
     $mdContent = "# Power Pages Documentation`n"
@@ -222,13 +233,25 @@ foreach ($site in $siteFolders) {
 
     # Site Settings (append at end)
     if (Test-Path $siteSettingFile) {
-        $siteSettings = (Get-Content $siteSettingFile | ConvertFrom-Yaml)
+        $siteSettingsLines = Get-Content $siteSettingFile
+        $siteSettings = @()
+        $current = @{}
+        foreach ($line in $siteSettingsLines) {
+            if ($line -match '^[ \t]*-[ \t]*$') {
+                if ($current.Count -gt 0) { $siteSettings += ,$current; $current = @{} }
+            } elseif ($line -match '^(.*?)\s*:\s*(.*)$') {
+                $key = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                $current[$key] = $value
+            }
+        }
+        if ($current.Count -gt 0) { $siteSettings += ,$current }
         $siteSettingsSection += "## Site Settings`n| Name | Value | Description | Setting ID |`n|---|---|---|---|`n"
-        foreach ($setting in ($siteSettings | Sort-Object { $_.adx_name.ToLower() })) {
-            $name = $setting.adx_name
-            $value = $setting.adx_value
-            $desc = $setting.adx_description
-            $id = $setting.adx_sitesettingid
+        foreach ($setting in ($siteSettings | Sort-Object { $_['adx_name'].ToLower() })) {
+            $name = $setting['adx_name']
+            $value = $setting['adx_value']
+            $desc = $setting['adx_description']
+            $id = $setting['adx_sitesettingid']
             # Escape pipe and replace newlines for Markdown
             if ($value) {
                 $value = $value -replace '\|', '&#124;'

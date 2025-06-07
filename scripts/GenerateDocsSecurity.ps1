@@ -149,7 +149,7 @@ function Convert-YamlObjectListWithArrays {
 
         # New object with first key/value (e.g., "- key: value")
         if ($line -match '^\s*-\s*(\S.*?)\s*:\s*(.*?)\s*$') {
-            if ($current.Count -gt 0) { $objects += ,$current; $current = @{} }
+            if ($current.Count -gt 0) { $objects += , $current; $current = @{} }
             $key = $matches[1].Trim()
             $value = $matches[2].Trim()
             $current[$key] = $value
@@ -160,7 +160,7 @@ function Convert-YamlObjectListWithArrays {
 
         # Standalone new object marker (e.g., just "-")
         if ($line -match '^\s*-\s*$') {
-            if ($current.Count -gt 0) { $objects += ,$current; $current = @{} }
+            if ($current.Count -gt 0) { $objects += , $current; $current = @{} }
             $currentKey = $null
             $inArray = $false
             continue
@@ -191,7 +191,7 @@ function Convert-YamlObjectListWithArrays {
         }
     }
 
-    if ($current.Count -gt 0) { $objects += ,$current }
+    if ($current.Count -gt 0) { $objects += , $current }
 
     return $objects
 }
@@ -224,9 +224,9 @@ foreach ($site in $siteFolders) {
     }
 
     $mdContent = "# Power Pages Documentation`n"
-    $mdContent += "Site Name: $siteDisplayName`n"
+    $mdContent += "**Site Name:** $siteDisplayName  `n"
     if ($IncludeGuids -and $siteId) {
-        $mdContent += "Site Id: $siteId`n"
+        $mdContent += "**Site Id:** $siteId`n"
     }
     $mdContent += "`n"
     $siteSettingFile = Join-Path $sitePath 'sitesetting.yml'
@@ -346,7 +346,15 @@ foreach ($site in $siteFolders) {
                         $pageName = $webPageNameLookup[$lookupKey]
                     }
                 }
-                $mdContent += "| $($perm['adx_name']) | $($perm['adx_right']) | $($perm['adx_scope']) | $roles | $pageName | $($perm['adx_webpageaccesscontrolruleid']) |`n"
+                # Map right number to text
+                $rightText = $perm['adx_right']
+                if ($rightText -eq 1) { $rightText = 'Grant Change' }
+                elseif ($rightText -eq 2) { $rightText = 'Restrict Read' }
+
+                $scopeText = $perm['adx_scope']
+                if ($scopeText -eq 1) { $scopeText = 'All Content' }
+                elseif ($scopeText -eq 2) { $scopeText = 'Exclude direct child web files' }
+                $mdContent += "| $($perm['adx_name']) | $rightText | $scopeText | $roles | $pageName | $($perm['adx_webpageaccesscontrolruleid']) |`n"
             }
             $mdContent += "`n"
         }
